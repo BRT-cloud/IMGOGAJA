@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>특수임용 퀴즈 마스터</title>
+    <!-- CSS 연결 -->
+    <link rel="stylesheet" href="style.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- Quiz 데이터 -->
+    <script src="db.js"></script>
+</head>
+<body>
+    <div id="app">
+        <!-- 1. 메인 화면 -->
+        <main id="homeScreen" class="screen active">
+            <div class="logo">
+                <h1>특수임용 <span>퀴즈 마스터</span></h1>
+                <p>하루 20문제! 빈틈없는 단답형 기출 정복</p>
+            </div>
+            
+            <div class="menu-cards">
+                <div class="card primary" onclick="startDailyQuest()">
+                    <h2>🔥 오늘의 퀘스트</h2>
+                    <p>랜덤 20문제 풀기</p>
+                    <button>도전하기</button>
+                </div>
+                <div class="card secondary" onclick="openIncorrectNotes()">
+                    <h2>📝 오답 노트</h2>
+                    <p>틀린 문제 다시 풀기</p>
+                    <button class="ghost-btn">확인하기</button>
+                </div>
+            </div>
+
+            <div class="admin-link">
+                <!-- DB가 없을 때를 위한 데이터 추출기 안내 -->
+                <p>문제 목록이 없나요? <a href="extractor.html" target="_blank">문제 DB 생성기 열기</a></p>
+            </div>
+        </main>
+
+        <!-- 2. 퀴즈 화면 -->
+        <main id="quizScreen" class="screen">
+            <header class="quiz-header">
+                <button class="back-btn" onclick="goHome()">← 뒤로 가기</button>
+                <div class="progress-container">
+                    <span id="progressText">오늘의 문제 0/20</span>
+                    <div class="progress-bar-bg">
+                        <div id="progressBar" class="progress-bar-fill"></div>
+                    </div>
+                </div>
+            </header>
+
+            <div class="question-container">
+                <div class="subject-tag" id="qSubject">과목명</div>
+                <h2 id="qText" class="question-text">여기에 문제가 표시됩니다.</h2>
+                
+                <div class="input-section">
+                    <input type="text" id="answerInput" placeholder="정답을 입력하세요" onkeypress="handleKeyPress(event)">
+                    <button id="submitBtn" onclick="checkAnswer()">제출</button>
+                    <button id="nextBtn" onclick="nextQuestion()" style="display: none;">다음 문제</button>
+                </div>
+
+                <div id="feedbackBox" class="feedback-box" style="display: none;">
+                    <div class="result-badge" id="resultBadge">정답!</div>
+                    <p class="real-answer">모범 답안: <span id="realAnswerText"></span></p>
+                    <div class="source-box">
+                        <strong>출제 근거 (원문):</strong>
+                        <p id="sourceTextP"></p>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- 3. 결과 화면 -->
+        <main id="resultScreen" class="screen">
+            <div class="result-container">
+                <h1>🎯 퀘스트 완료!</h1>
+                <p class="score-text">총 20문제 중 <span id="finalScore">0</span>문제를 맞혔습니다.</p>
+                <div class="result-buttons">
+                    <button onclick="goHome()">홈으로 돌아가기</button>
+                    <button class="ghost-btn" onclick="openIncorrectNotes()">오답 확인하기</button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- JS 연결 -->
+    <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>문제 은행(DB) 추출기 - PDF 파싱 툴</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; background-color: #f4f7f9; color: #333; }
+        .container { max-width: 800px; margin: 0 auto; background: #fff; padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        h1 { color: #0056b3; font-size: 24px; margin-bottom: 5px; }
+        p { color: #666; margin-bottom: 20px; font-size: 14px; }
+        .upload-area { border: 2px dashed #0056b3; padding: 30px; text-align: center; border-radius: 8px; margin-bottom: 20px; background-color: #fdfdfd; }
+        button { background-color: #0056b3; color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-size: 16px; transition: 0.2s; }
+        button:hover { background-color: #004494; }
+        #logs { background: #1e1e1e; color: #0f0; padding: 15px; border-radius: 8px; font-family: monospace; height: 200px; overflow-y: scroll; margin-bottom: 20px; }
+        .alert { background: #fff3cd; color: #856404; padding: 10px; border-radius: 6px; font-size: 13px; margin-bottom: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📚 문제 은행 자동 추출기 (로컬 구동)</h1>
+        <p>파이썬이나 별도 서버 없이, <b>브라우저 내에서 직접 PDF를 읽어 db.js를 생성</b>합니다.<br>외부로 데이터가 전송되지 않으며 할루시네이션(거짓 정보) 없이 원문만 추출합니다.</p>
+        
+        <div class="alert">
+            <strong>사용 방법:</strong> 아래 버튼을 눌러 '임용문제' 폴더 안의 PDF 파일들을 다중 선택해주세요. 완료되면 <code>db.js</code> 파일이 다운로드됩니다. 다운로드된 파일을 현재 폴더의 db.js에 덮어씌워주세요.
+        </div>
+
+        <div class="upload-area">
+            <input type="file" id="pdfInput" multiple accept="application/pdf" style="display: none;">
+            <button onclick="document.getElementById('pdfInput').click()">PDF 파일들 선택하기</button>
+            <div id="fileCount" style="margin-top: 10px; font-weight: bold;"></div>
+        </div>
+
+        <div id="logs">준비 완료. 대기 중...</div>
+    </div>
+
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+
+        const logsEl = document.getElementById('logs');
+        const log = (msg) => {
+            logsEl.innerHTML += `<div>> ${msg}</div>`;
+            logsEl.scrollTop = logsEl.scrollHeight;
+        };
+
+        let generatedDB = [];
+
+        // 핵심 단답형 문제 추출 휴리스틱 (정규식 기반)
+        function extractQuestions(text, fileName) {
+            const subject = fileName.replace('.pdf', '');
+            const sentences = text.split(/[\.\!\?]\s+/);
+            const foundQuestions = [];
+
+            sentences.forEach(sentence => {
+                sentence = sentence.trim();
+                if(sentence.length < 15 || sentence.length > 200) return;
+
+                // 패턴: "OOO(이)란 ... 를 의미한다" 또는 "OOO(이)란 ... 말한다"
+                const match = sentence.match(/([가-힣\s\(\)a-zA-Z]{2,15})(?:이?란|는)\s+(.+?(?:의미한다|말한다|뜻한다|일컫는다|것이다|수 있다))/);
+                
+                if (match) {
+                    const answer = match[1].trim();
+                    const desc = match[2].trim();
+                    
+                    // 정답어가 너무 길거나 의미 없는 조사로 끝나면 패스
+                    if(answer.length > 1 && answer.length <= 15 && !answer.includes(" ") && !answer.endsWith("란")) {
+                        foundQuestions.push({
+                            id: "q_" + Date.now() + "_" + Math.floor(Math.random() * 10000),
+                            subject: subject,
+                            questionText: `다음 지문이 설명하는 핵심 개념은 무엇인가?<br><br>"${desc}"`,
+                            shortAnswer: [answer],
+                            descriptiveAnswer: desc,
+                            sourceText: `[${subject}] ${sentence}.`
+                        });
+                    }
+                }
+            });
+            return foundQuestions;
+        }
+
+        async function extractTextFromPDF(fileAsBuffer) {
+            const loadingTask = pdfjsLib.getDocument({ data: fileAsBuffer });
+            const pdf = await loadingTask.promise;
+            let fullText = '';
+            
+            // 너무 큰 PDF는 메모리 방지를 위해 일부만 읽거나 1페이지씩 텍스트 변환
+            for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                const textContent = await page.getTextContent();
+                const pageText = textContent.items.map(item => item.str).join(' ');
+                fullText += pageText + ' ';
+            }
+            return fullText;
+        }
+
+        document.getElementById('pdfInput').addEventListener('change', async (e) => {
+            const files = e.target.files;
+            if(files.length === 0) return;
+            document.getElementById('fileCount').innerText = `${files.length}개 파일 선택됨`;
+            
+            for(let i=0; i<files.length; i++) {
+                const file = files[i];
+                log(`${file.name} 분석 시작... (파일 크기가 클 경우 시간이 소요됩니다)`);
+                try {
+                    const arrayBuffer = await file.arrayBuffer();
+                    const text = await extractTextFromPDF(arrayBuffer);
+                    const questions = extractQuestions(text, file.name);
+                    
+                    generatedDB = generatedDB.concat(questions);
+                    log(`완료: ${file.name} (추출된 예상 문제 수: ${questions.length}개)`);
+                } catch (error) {
+                    log(`오류 발생 (${file.name}): ${error.message}`);
+                }
+            }
+
+            log(`총 ${generatedDB.length} 개의 문제가 추출되었습니다.`);
+            
+            if(generatedDB.length > 0) {
+                // 다운로드 트리거
+                const jsContent = `// 자동 생성된 퀴즈 DB 파일\n// 원문 할루시네이션 0% 정규식 기반 추출\nconst quizDB = ${JSON.stringify(generatedDB, null, 4)};`;
+                const blob = new Blob([jsContent], { type: "text/javascript" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = "db.js";
+                log("db.js 파일이 브라우저에서 다운로드 되었습니다! C:\\Users\\user\\.gemini\\antigravity\\scratch\\quiz-app 폴더에 덮어씌워주세요.");
+                a.click();
+            } else {
+                log("추출된 문제가 없습니다. (발견된 정규식 패턴 없음)");
+            }
+        });
+    </script>
+</body>
+</html>
